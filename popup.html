@@ -127,6 +127,14 @@
     #direct-fetch-btn:hover {
       background-color: #F57C00;
     }
+    
+    #xhr-fetch-btn {
+      background-color: #2196F3;
+    }
+    
+    #xhr-fetch-btn:hover {
+      background-color: #1976D2;
+    }
   </style>
 </head>
 <body>
@@ -145,12 +153,17 @@
   
   <div class="actions">
     <button id="fetch-btn">Fetch All Leads Now</button>
-    <p class="help-text">Use this method to fetch leads using the standard approach.</p>
+    <p class="help-text">Use this method to fetch leads using the direct API approach.</p>
     
     <div class="divider"></div>
     
     <button id="direct-fetch-btn">Try Direct Fetch Method</button>
     <p class="help-text">If the standard method doesn't work, try this alternative method that uses a different approach to fetch leads.</p>
+    
+    <div class="divider"></div>
+    
+    <button id="xhr-fetch-btn">Try XHR Fetch Method</button>
+    <p class="help-text">If other methods don't work, try this method that uses XMLHttpRequest instead of fetch API.</p>
     
     <div class="divider"></div>
     

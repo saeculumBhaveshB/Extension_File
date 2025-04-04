@@ -5,83 +5,27 @@ function isLeadManagerPage() {
   return window.location.href.includes("seller.indiamart.com/messagecentre");
 }
 
-// Function to check if user is logged in
+// Function to check if user is logged in - for paid customers, we assume they're always logged in
 function isUserLoggedIn() {
-  // Check for multiple possible indicators of being logged in
-
-  // Method 1: Check for common profile elements
-  const userProfileElements = document.querySelectorAll(
-    ".user-profile, .user-name, .logout-btn, .logout, .user-info"
-  );
-  if (userProfileElements.length > 0) {
-    console.log("Login detected via profile elements");
-    return true;
-  }
-
-  // Method 2: Check for session cookies
-  const hasCookies =
-    document.cookie.includes("ImeshVisitor") ||
-    document.cookie.includes("im_iss") ||
-    document.cookie.includes("xnHist");
-  if (hasCookies) {
-    console.log("Login detected via cookies");
-    return true;
-  }
-
-  // Method 3: Check for lead manager specific elements that only appear when logged in
-  const leadManagerElements = document.querySelectorAll(
-    ".lead-list, .lead-item, .lead-container, .message-centre"
-  );
-  if (leadManagerElements.length > 0) {
-    console.log("Login detected via lead manager elements");
-    return true;
-  }
-
-  // Method 4: Check for any element with text containing username or account info
-  const pageText = document.body.innerText;
-  if (
-    pageText.includes("My Account") ||
-    pageText.includes("Sign Out") ||
-    pageText.includes("Log Out") ||
-    pageText.includes("Dashboard")
-  ) {
-    console.log("Login detected via page text");
-    return true;
-  }
-
-  // Method 5: Check if URL contains authenticated sections
-  if (
-    window.location.href.includes("/messagecentre") ||
-    window.location.href.includes("/dashboard")
-  ) {
-    console.log("Login detected via URL pattern");
-    return true;
-  }
-
-  // If we've reached this point, we couldn't find any login indicators
-  console.log("No login indicators found");
-  return false;
+  // For paid customers, always return true
+  return true;
 }
 
-// Function to trigger lead data fetching
-function fetchLeadData(forceBypassLoginCheck = false) {
-  console.log("Triggering lead data fetch from content script");
-
-  // Check if user is logged in (unless we're forcing bypass)
-  if (!forceBypassLoginCheck && !isUserLoggedIn()) {
-    console.error("User is not logged in to Indiamart");
-    showNotification("Please log in to your Indiamart account first", "error");
-    return;
-  }
+// Function to fetch lead data
+function fetchLeadData(forceBypassLoginCheck = true) {
+  console.log("Fetching lead data...");
 
   // Show a notification to the user
-  showNotification("Fetching lead data from Indiamart...", "info", 0); // 0 means don't auto-hide
+  showNotification("Fetching lead data...", "info", 0); // 0 means don't auto-hide
 
-  // Send message to background script to fetch lead data
+  // For paid customers, we always bypass login check
+  console.log("Bypassing login check for paid customer");
+
+  // Send message to background script
   chrome.runtime.sendMessage(
     {
       action: "fetchLeads",
-      forceBypassLoginCheck: forceBypassLoginCheck,
+      forceBypassLoginCheck: true, // Always true for paid customers
     },
     (response) => {
       console.log("Received response from background script:", response);
@@ -97,12 +41,12 @@ function fetchLeadData(forceBypassLoginCheck = false) {
 
         if (leads.length === 0 && totalCount === 0) {
           showNotification(
-            "No leads found. Make sure you are on the Lead Manager page and are logged in.",
+            "No leads found. Please check if you have any leads in your account.",
             "warning"
           );
         } else if (leads.length === 0 && totalCount > 0) {
           showNotification(
-            `Found ${totalCount} leads but couldn't fetch them. Please check console for details.`,
+            `Found ${totalCount} leads but couldn't fetch them. Please try the Direct Fetch or XHR Fetch method.`,
             "warning"
           );
         } else if (leads.length < totalCount) {
@@ -121,8 +65,7 @@ function fetchLeadData(forceBypassLoginCheck = false) {
           response ? response.error : "Unknown error"
         );
         showNotification(
-          "Failed to fetch lead data: " +
-            (response ? response.error : "Unknown error"),
+          "Failed to fetch lead data. Please try the Direct Fetch or XHR Fetch method.",
           "error"
         );
       }
@@ -196,113 +139,6 @@ function showNotification(message, type = "info", duration = 5000) {
   }
 }
 
-// Function to add a button to manually trigger data fetching
-function addFetchButton() {
-  // Check if button already exists
-  if (document.getElementById("indiamart-fetch-button")) {
-    return;
-  }
-
-  // Create button
-  const button = document.createElement("button");
-  button.id = "indiamart-fetch-button";
-  button.textContent = "Fetch All Leads";
-  button.style.position = "fixed";
-  button.style.bottom = "20px";
-  button.style.right = "20px";
-  button.style.padding = "10px 20px";
-  button.style.backgroundColor = "#4CAF50";
-  button.style.color = "white";
-  button.style.border = "none";
-  button.style.borderRadius = "5px";
-  button.style.cursor = "pointer";
-  button.style.zIndex = "9999";
-  button.style.boxShadow = "0 4px 8px rgba(0, 0, 0, 0.2)";
-
-  // Add hover effect
-  button.addEventListener("mouseover", () => {
-    button.style.backgroundColor = "#45a049";
-  });
-
-  button.addEventListener("mouseout", () => {
-    button.style.backgroundColor = "#4CAF50";
-  });
-
-  // Add click event listener
-  button.addEventListener("click", () => {
-    fetchLeadData(false); // Normal fetch with login check
-  });
-
-  // Add button to page
-  document.body.appendChild(button);
-
-  // Add Force Fetch button
-  const forceButton = document.createElement("button");
-  forceButton.id = "indiamart-force-fetch-button";
-  forceButton.textContent = "Force Fetch (Bypass Login Check)";
-  forceButton.style.position = "fixed";
-  forceButton.style.bottom = "20px";
-  forceButton.style.right = "180px";
-  forceButton.style.padding = "10px 20px";
-  forceButton.style.backgroundColor = "#FF9800";
-  forceButton.style.color = "white";
-  forceButton.style.border = "none";
-  forceButton.style.borderRadius = "5px";
-  forceButton.style.cursor = "pointer";
-  forceButton.style.zIndex = "9999";
-  forceButton.style.boxShadow = "0 4px 8px rgba(0, 0, 0, 0.2)";
-
-  // Add hover effect
-  forceButton.addEventListener("mouseover", () => {
-    forceButton.style.backgroundColor = "#F57C00";
-  });
-
-  forceButton.addEventListener("mouseout", () => {
-    forceButton.style.backgroundColor = "#FF9800";
-  });
-
-  // Add click event listener
-  forceButton.addEventListener("click", () => {
-    fetchLeadData(true); // Force fetch with login check bypassed
-  });
-
-  // Add button to page
-  document.body.appendChild(forceButton);
-
-  // Add Direct Fetch button
-  const directButton = document.createElement("button");
-  directButton.id = "indiamart-direct-fetch-button";
-  directButton.textContent = "Try Direct Fetch Method";
-  directButton.style.position = "fixed";
-  directButton.style.bottom = "60px";
-  directButton.style.right = "20px";
-  directButton.style.padding = "10px 20px";
-  directButton.style.backgroundColor = "#2196F3";
-  directButton.style.color = "white";
-  directButton.style.border = "none";
-  directButton.style.borderRadius = "5px";
-  directButton.style.cursor = "pointer";
-  directButton.style.zIndex = "9999";
-  directButton.style.boxShadow = "0 4px 8px rgba(0, 0, 0, 0.2)";
-
-  // Add hover effect
-  directButton.addEventListener("mouseover", () => {
-    directButton.style.backgroundColor = "#0b7dda";
-  });
-
-  directButton.addEventListener("mouseout", () => {
-    directButton.style.backgroundColor = "#2196F3";
-  });
-
-  // Add click event listener
-  directButton.addEventListener("click", () => {
-    useDirectFetchMethod();
-  });
-
-  // Add button to page
-  document.body.appendChild(directButton);
-}
-
 // Function to use direct fetch method
 function useDirectFetchMethod() {
   console.log("Using direct fetch method");
@@ -320,6 +156,15 @@ function useDirectFetchMethod() {
 
       // Hide the loading notification
       hideNotification();
+
+      if (chrome.runtime.lastError) {
+        console.error("Runtime error:", chrome.runtime.lastError);
+        showNotification(
+          `Error: ${chrome.runtime.lastError.message}. Please check if you're logged in to Indiamart.`,
+          "error"
+        );
+        return;
+      }
 
       if (response && response.success) {
         const { leads, totalCount } = response.data;
@@ -348,13 +193,81 @@ function useDirectFetchMethod() {
           );
         }
       } else {
+        const errorMessage = response ? response.error : "Unknown error";
         console.error(
           "Failed to fetch lead data using direct method:",
-          response ? response.error : "Unknown error"
+          errorMessage
         );
         showNotification(
-          "Failed to fetch lead data using direct method: " +
-            (response ? response.error : "Unknown error"),
+          `Failed to fetch lead data using direct method: ${errorMessage}. Please make sure you're logged in to Indiamart and try again.`,
+          "error"
+        );
+      }
+    }
+  );
+}
+
+// Function to use XHR fetch method
+function useXhrFetchMethod() {
+  console.log("Using XHR fetch method");
+
+  // Show a notification to the user
+  showNotification("Using XHR fetch method...", "info", 0); // 0 means don't auto-hide
+
+  // Send message to background script to use XHR fetch method
+  chrome.runtime.sendMessage(
+    {
+      action: "xhrFetch",
+    },
+    (response) => {
+      console.log("Received response from background script:", response);
+
+      // Hide the loading notification
+      hideNotification();
+
+      if (chrome.runtime.lastError) {
+        console.error("Runtime error:", chrome.runtime.lastError);
+        showNotification(
+          `Error: ${chrome.runtime.lastError.message}. Please check if you're logged in to Indiamart.`,
+          "error"
+        );
+        return;
+      }
+
+      if (response && response.success) {
+        const { leads, totalCount } = response.data;
+        console.log(
+          `Successfully fetched ${leads.length} leads out of ${totalCount} total using XHR method`
+        );
+
+        if (leads.length === 0 && totalCount === 0) {
+          showNotification(
+            "No leads found using XHR method. Make sure you are on the Lead Manager page and are logged in.",
+            "warning"
+          );
+        } else if (leads.length === 0 && totalCount > 0) {
+          showNotification(
+            `Found ${totalCount} leads but couldn't fetch them using XHR method. Please check console for details.`,
+            "warning"
+          );
+        } else if (leads.length < totalCount) {
+          showNotification(
+            `Partially fetched ${leads.length} leads out of ${totalCount} total using XHR method`,
+            "warning"
+          );
+        } else {
+          showNotification(
+            `Successfully fetched ${leads.length} leads from Indiamart using XHR method`
+          );
+        }
+      } else {
+        const errorMessage = response ? response.error : "Unknown error";
+        console.error(
+          "Failed to fetch lead data using XHR method:",
+          errorMessage
+        );
+        showNotification(
+          `Failed to fetch lead data using XHR method: ${errorMessage}. Please make sure you're logged in to Indiamart and try again.`,
           "error"
         );
       }
@@ -439,6 +352,140 @@ function addDebugPanel() {
 
   // Add button to page
   document.body.appendChild(debugToggle);
+}
+
+// Function to add fetch buttons to the page
+function addFetchButton() {
+  // Check if button already exists
+  if (document.getElementById("indiamart-fetch-button")) {
+    return;
+  }
+
+  // Create button
+  const button = document.createElement("button");
+  button.id = "indiamart-fetch-button";
+  button.textContent = "Fetch All Leads";
+  button.style.position = "fixed";
+  button.style.bottom = "20px";
+  button.style.right = "20px";
+  button.style.zIndex = "9999";
+  button.style.padding = "10px 15px";
+  button.style.backgroundColor = "#4CAF50";
+  button.style.color = "white";
+  button.style.border = "none";
+  button.style.borderRadius = "5px";
+  button.style.cursor = "pointer";
+  button.style.fontSize = "14px";
+  button.style.boxShadow = "0 2px 5px rgba(0,0,0,0.3)";
+
+  // Add hover effect
+  button.addEventListener("mouseover", () => {
+    button.style.backgroundColor = "#45a049";
+  });
+  button.addEventListener("mouseout", () => {
+    button.style.backgroundColor = "#4CAF50";
+  });
+
+  // Add click event
+  button.addEventListener("click", () => {
+    fetchLeadData();
+  });
+
+  // Create direct fetch button
+  const directButton = document.createElement("button");
+  directButton.id = "indiamart-direct-fetch-button";
+  directButton.textContent = "Try Direct Fetch Method";
+  directButton.style.position = "fixed";
+  directButton.style.bottom = "60px";
+  directButton.style.right = "20px";
+  directButton.style.zIndex = "9999";
+  directButton.style.padding = "10px 15px";
+  directButton.style.backgroundColor = "#2196F3";
+  directButton.style.color = "white";
+  directButton.style.border = "none";
+  directButton.style.borderRadius = "5px";
+  directButton.style.cursor = "pointer";
+  directButton.style.fontSize = "14px";
+  directButton.style.boxShadow = "0 2px 5px rgba(0,0,0,0.3)";
+
+  // Add hover effect
+  directButton.addEventListener("mouseover", () => {
+    directButton.style.backgroundColor = "#1976D2";
+  });
+  directButton.addEventListener("mouseout", () => {
+    directButton.style.backgroundColor = "#2196F3";
+  });
+
+  // Add click event
+  directButton.addEventListener("click", () => {
+    useDirectFetchMethod();
+  });
+
+  // Create XHR fetch button
+  const xhrButton = document.createElement("button");
+  xhrButton.id = "indiamart-xhr-fetch-button";
+  xhrButton.textContent = "Try XHR Fetch Method";
+  xhrButton.style.position = "fixed";
+  xhrButton.style.bottom = "60px";
+  xhrButton.style.right = "180px";
+  xhrButton.style.zIndex = "9999";
+  xhrButton.style.padding = "10px 15px";
+  xhrButton.style.backgroundColor = "#9C27B0";
+  xhrButton.style.color = "white";
+  xhrButton.style.border = "none";
+  xhrButton.style.borderRadius = "5px";
+  xhrButton.style.cursor = "pointer";
+  xhrButton.style.fontSize = "14px";
+  xhrButton.style.boxShadow = "0 2px 5px rgba(0,0,0,0.3)";
+
+  // Add hover effect
+  xhrButton.addEventListener("mouseover", () => {
+    xhrButton.style.backgroundColor = "#7B1FA2";
+  });
+  xhrButton.addEventListener("mouseout", () => {
+    xhrButton.style.backgroundColor = "#9C27B0";
+  });
+
+  // Add click event
+  xhrButton.addEventListener("click", () => {
+    useXhrFetchMethod();
+  });
+
+  // Add debug button
+  const debugButton = document.createElement("button");
+  debugButton.id = "indiamart-debug-button";
+  debugButton.textContent = "Debug";
+  debugButton.style.position = "fixed";
+  debugButton.style.bottom = "100px";
+  debugButton.style.right = "20px";
+  debugButton.style.zIndex = "9999";
+  debugButton.style.padding = "10px 15px";
+  debugButton.style.backgroundColor = "#607D8B";
+  debugButton.style.color = "white";
+  debugButton.style.border = "none";
+  debugButton.style.borderRadius = "5px";
+  debugButton.style.cursor = "pointer";
+  debugButton.style.fontSize = "14px";
+  debugButton.style.boxShadow = "0 2px 5px rgba(0,0,0,0.3)";
+
+  // Add hover effect
+  debugButton.addEventListener("mouseover", () => {
+    debugButton.style.backgroundColor = "#455A64";
+  });
+  debugButton.addEventListener("mouseout", () => {
+    debugButton.style.backgroundColor = "#607D8B";
+  });
+
+  // Add click event
+  debugButton.addEventListener("click", () => {
+    addDebugPanel();
+  });
+
+  // Add buttons to page
+  document.body.appendChild(button);
+  document.body.appendChild(directButton);
+  document.body.appendChild(xhrButton);
+  document.body.appendChild(debugButton);
 }
 
 // Main function to initialize the content script

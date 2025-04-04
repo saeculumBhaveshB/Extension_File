@@ -82,44 +82,52 @@ function checkIfOnIndiamart() {
 // Function to fetch lead data
 async function fetchLeadData() {
   try {
-    // Check if user is on Indiamart
-    const isOnIndiamart = await checkIfOnIndiamart();
-
-    if (!isOnIndiamart) {
-      showStatus("Please navigate to Indiamart Lead Manager page first", true);
-      return;
-    }
-
     // Show loading indicator
     loadingElement.style.display = "block";
     loadingTextElement.textContent = "Fetching leads...";
     fetchButton.disabled = true;
     directFetchButton.disabled = true;
+    xhrFetchButton.disabled = true;
 
-    // Send message to background script to fetch lead data
-    // Force bypass login check when fetching from popup
+    // Clear any previous status messages
+    statusElement.className = "status";
+    statusElement.textContent = "";
+    statusElement.style.display = "none";
+
+    console.log("Initiating lead fetch from popup");
+
+    // For paid customers, we'll try the direct fetch method first
     chrome.runtime.sendMessage(
       {
-        action: "fetchLeads",
-        forceBypassLoginCheck: true,
+        action: "directFetch",
       },
       (response) => {
         // Hide loading indicator
         loadingElement.style.display = "none";
         fetchButton.disabled = false;
         directFetchButton.disabled = false;
+        xhrFetchButton.disabled = false;
+
+        if (chrome.runtime.lastError) {
+          console.error("Runtime error:", chrome.runtime.lastError);
+          showStatus(
+            `Error: ${chrome.runtime.lastError.message}. Please try a different fetch method.`,
+            true
+          );
+          return;
+        }
 
         if (response && response.success) {
           const { leads, totalCount } = response.data;
 
           if (leads.length === 0 && totalCount === 0) {
             showStatus(
-              "No leads found. Make sure you are logged in to Indiamart.",
+              "No leads found. Please check if you have any leads in your account.",
               true
             );
           } else if (leads.length === 0 && totalCount > 0) {
             showStatus(
-              `Found ${totalCount} leads but couldn't fetch them. Check console for details.`,
+              `Found ${totalCount} leads but couldn't fetch them. Please try the XHR Fetch method.`,
               true
             );
           } else if (leads.length < totalCount) {
@@ -135,9 +143,9 @@ async function fetchLeadData() {
           updateUI();
         } else {
           showStatus(
-            `Failed to fetch lead data: ${
+            `Failed to fetch leads: ${
               response ? response.error : "Unknown error"
-            }`,
+            }. Please try a different fetch method.`,
             true
           );
         }
@@ -147,6 +155,7 @@ async function fetchLeadData() {
     loadingElement.style.display = "none";
     fetchButton.disabled = false;
     directFetchButton.disabled = false;
+    xhrFetchButton.disabled = false;
     showStatus(`Error: ${error.message}`, true);
   }
 }
@@ -160,6 +169,13 @@ async function useDirectFetchMethod() {
     fetchButton.disabled = true;
     directFetchButton.disabled = true;
 
+    // Clear any previous status messages
+    statusElement.className = "status";
+    statusElement.textContent = "";
+    statusElement.style.display = "none";
+
+    console.log("Initiating direct fetch method...");
+
     // Send message to background script to use direct fetch method
     chrome.runtime.sendMessage(
       {
@@ -171,8 +187,20 @@ async function useDirectFetchMethod() {
         fetchButton.disabled = false;
         directFetchButton.disabled = false;
 
+        if (chrome.runtime.lastError) {
+          console.error("Runtime error:", chrome.runtime.lastError);
+          showStatus(
+            `Error: ${chrome.runtime.lastError.message}. Please check if you're logged in to Indiamart.`,
+            true
+          );
+          return;
+        }
+
         if (response && response.success) {
           const { leads, totalCount } = response.data;
+          console.log(
+            `Direct fetch results: ${leads.length} leads out of ${totalCount} total`
+          );
 
           if (leads.length === 0 && totalCount === 0) {
             showStatus(
@@ -196,16 +224,17 @@ async function useDirectFetchMethod() {
 
           updateUI();
         } else {
+          const errorMessage = response ? response.error : "Unknown error";
+          console.error("Direct fetch failed:", errorMessage);
           showStatus(
-            `Direct fetch failed: ${
-              response ? response.error : "Unknown error"
-            }`,
+            `Direct fetch failed: ${errorMessage}. Please make sure you're logged in to Indiamart.`,
             true
           );
         }
       }
     );
   } catch (error) {
+    console.error("Error in direct fetch method:", error);
     loadingElement.style.display = "none";
     fetchButton.disabled = false;
     directFetchButton.disabled = false;
@@ -349,4 +378,113 @@ exportJsonButton.addEventListener("click", exportAsJSON);
 clearDataButton.addEventListener("click", clearStoredData);
 
 // Initialize UI when popup is opened
-document.addEventListener("DOMContentLoaded", updateUI);
+document.addEventListener("DOMContentLoaded", () => {
+  // Get DOM elements
+  fetchButton = document.getElementById("fetch-btn");
+  directFetchButton = document.getElementById("direct-fetch-btn");
+  xhrFetchButton = document.getElementById("xhr-fetch-btn");
+  exportCsvButton = document.getElementById("export-csv-btn");
+  exportJsonButton = document.getElementById("export-json-btn");
+  clearDataButton = document.getElementById("clear-data-btn");
+  totalLeadsElement = document.getElementById("total-leads");
+  lastFetchedElement = document.getElementById("last-fetched");
+  statusElement = document.getElementById("status");
+  loadingElement = document.getElementById("loading");
+  loadingTextElement = document.getElementById("loading-text");
+
+  // Update UI with stored data
+  updateUI();
+
+  // Add event listeners
+  fetchButton.addEventListener("click", fetchLeadData);
+  directFetchButton.addEventListener("click", useDirectFetchMethod);
+  xhrFetchButton.addEventListener("click", useXhrFetchMethod);
+  exportCsvButton.addEventListener("click", exportAsCSV);
+  exportJsonButton.addEventListener("click", exportAsJSON);
+  clearDataButton.addEventListener("click", clearStoredData);
+});
+
+// Function to use XHR fetch method
+async function useXhrFetchMethod() {
+  try {
+    // Show loading indicator
+    loadingElement.style.display = "block";
+    loadingTextElement.textContent = "Using XHR fetch method...";
+    fetchButton.disabled = true;
+    directFetchButton.disabled = true;
+    xhrFetchButton.disabled = true;
+
+    // Clear any previous status messages
+    statusElement.className = "status";
+    statusElement.textContent = "";
+    statusElement.style.display = "none";
+
+    console.log("Initiating XHR fetch method...");
+
+    // Send message to background script to use XHR fetch method
+    chrome.runtime.sendMessage(
+      {
+        action: "xhrFetch",
+      },
+      (response) => {
+        // Hide loading indicator
+        loadingElement.style.display = "none";
+        fetchButton.disabled = false;
+        directFetchButton.disabled = false;
+        xhrFetchButton.disabled = false;
+
+        if (chrome.runtime.lastError) {
+          console.error("Runtime error:", chrome.runtime.lastError);
+          showStatus(
+            `Error: ${chrome.runtime.lastError.message}. Please check if you're logged in to Indiamart.`,
+            true
+          );
+          return;
+        }
+
+        if (response && response.success) {
+          const { leads, totalCount } = response.data;
+          console.log(
+            `XHR fetch results: ${leads.length} leads out of ${totalCount} total`
+          );
+
+          if (leads.length === 0 && totalCount === 0) {
+            showStatus(
+              "No leads found using XHR method. Make sure you are logged in to Indiamart.",
+              true
+            );
+          } else if (leads.length === 0 && totalCount > 0) {
+            showStatus(
+              `Found ${totalCount} leads but couldn't fetch them using XHR method.`,
+              true
+            );
+          } else if (leads.length < totalCount) {
+            showStatus(
+              `Partially fetched ${leads.length} leads out of ${totalCount} total using XHR method`
+            );
+          } else {
+            showStatus(
+              `Successfully fetched ${leads.length} leads out of ${totalCount} total using XHR method`
+            );
+          }
+
+          updateUI();
+        } else {
+          const errorMessage = response ? response.error : "Unknown error";
+          console.error("XHR fetch failed:", errorMessage);
+          showStatus(
+            `XHR fetch failed: ${errorMessage}. Please make sure you're logged in to Indiamart.`,
+            true
+          );
+        }
+      }
+    );
+  } catch (error) {
+    console.error("Error in XHR fetch method:", error);
+    loadingElement.style.display = "none";
+    fetchButton.disabled = false;
+    directFetchButton.disabled = false;
+    xhrFetchButton.disabled = false;
+    showStatus(`Error with XHR fetch: ${error.message}`, true);
+  }
+}

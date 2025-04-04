@@ -2,9 +2,12 @@
   "manifest_version": 3,
   "name": "Indiamart Lead Fetcher",
   "version": "1.0",
-  "description": "Fetches lead data from Indiamart Lead Manager",
+  "description": "Fetches lead data from Indiamart Lead Manager for paid customers",
   "permissions": ["storage", "tabs", "webRequest", "cookies"],
-  "host_permissions": ["https://seller.indiamart.com/*"],
+  "host_permissions": [
+    "https://seller.indiamart.com/*",
+    "https://indiamart.com/*"
+  ],
   "background": {
     "service_worker": "background.js"
   },
