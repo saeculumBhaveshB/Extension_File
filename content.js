@@ -63,71 +63,47 @@ function isUserLoggedIn() {
   return false;
 }
 
-// Function to trigger lead data fetching
+// Function to trigger lead data fetching (NOW MAINLY FOR BUTTONS ON PAGE)
 function fetchLeadData(forceBypassLoginCheck = false) {
-  console.log("Triggering lead data fetch from content script");
+  console.log("Triggering lead data fetch from content script button");
 
-  // Check if user is logged in (unless we're forcing bypass)
   if (!forceBypassLoginCheck && !isUserLoggedIn()) {
     console.error("User is not logged in to Indiamart");
     showNotification("Please log in to your Indiamart account first", "error");
     return;
   }
 
-  // Show a notification to the user
-  showNotification("Fetching lead data from Indiamart...", "info", 0); // 0 means don't auto-hide
+  showNotification("Fetching lead data from Indiamart...", "info", 0);
 
-  // Send message to background script to fetch lead data
+  // *** COMMENTED OUT: Message now comes FROM background script ***
+  /*
   chrome.runtime.sendMessage(
     {
       action: "fetchLeads",
       forceBypassLoginCheck: forceBypassLoginCheck,
     },
     (response) => {
-      console.log("Received response from background script:", response);
-
-      // Hide the loading notification
-      hideNotification();
-
-      if (response && response.success) {
-        const { leads, totalCount } = response.data;
-        console.log(
-          `Successfully fetched ${leads.length} leads out of ${totalCount} total`
-        );
-
-        if (leads.length === 0 && totalCount === 0) {
-          showNotification(
-            "No leads found. Make sure you are on the Lead Manager page and are logged in.",
-            "warning"
-          );
-        } else if (leads.length === 0 && totalCount > 0) {
-          showNotification(
-            `Found ${totalCount} leads but couldn't fetch them. Please check console for details.`,
-            "warning"
-          );
-        } else if (leads.length < totalCount) {
-          showNotification(
-            `Partially fetched ${leads.length} leads out of ${totalCount} total`,
-            "warning"
-          );
-        } else {
-          showNotification(
-            `Successfully fetched ${leads.length} leads from Indiamart`
-          );
-        }
-      } else {
-        console.error(
-          "Failed to fetch lead data:",
-          response ? response.error : "Unknown error"
-        );
-        showNotification(
-          "Failed to fetch lead data: " +
-            (response ? response.error : "Unknown error"),
-          "error"
-        );
-      }
+      // ... (response handling logic - might need adjustment later)
     }
   );
+  */
+
+  // *** INSTEAD: Call the scraping logic directly or trigger it ***
+  // We need to call the actual scraping logic here now.
+  // For consistency, let's use the same structure as the message listener
+  // but call a local scraping function directly.
+  handleScrapingRequest("scrapeLeads", forceBypassLoginCheck).then((result) => {
+    hideNotification();
+    // Handle the result (e.g., show notification)
+    if (result.success) {
+      const { leads, totalCount } = result.data;
+      showNotification(
+        `Local fetch: Successfully fetched ${leads.length} leads from Indiamart`
+      );
+    } else {
+      showNotification(`Local fetch failed: ${result.error}`, "error");
+    }
+  });
 }
 
 // Function to hide notification
@@ -303,66 +279,38 @@ function addFetchButton() {
   document.body.appendChild(directButton);
 }
 
-// Function to use direct fetch method
+// Function to handle direct fetch method logic (NOW MAINLY FOR BUTTONS ON PAGE)
 function useDirectFetchMethod() {
-  console.log("Using direct fetch method");
+  console.log("Using direct fetch method from content script button");
 
-  // Show a notification to the user
-  showNotification("Using direct fetch method...", "info", 0); // 0 means don't auto-hide
+  showNotification("Fetching leads using direct method...", "info", 0);
 
-  // Send message to background script to use direct fetch method
+  // *** COMMENTED OUT: Message now comes FROM background script ***
+  /*
   chrome.runtime.sendMessage(
     {
       action: "directFetch",
     },
     (response) => {
-      console.log("Received response from background script:", response);
-
-      // Hide the loading notification
-      hideNotification();
-
-      if (response && response.success) {
-        const { leads, totalCount } = response.data;
-        console.log(
-          `Successfully fetched ${leads.length} leads out of ${totalCount} total using direct method`
-        );
-
-        if (leads.length === 0 && totalCount === 0) {
-          showNotification(
-            "No leads found using direct method. Make sure you are on the Lead Manager page and are logged in.",
-            "warning"
-          );
-        } else if (leads.length === 0 && totalCount > 0) {
-          showNotification(
-            `Found ${totalCount} leads but couldn't fetch them using direct method. Please check console for details.`,
-            "warning"
-          );
-        } else if (leads.length < totalCount) {
-          showNotification(
-            `Partially fetched ${leads.length} leads out of ${totalCount} total using direct method`,
-            "warning"
-          );
-        } else {
-          showNotification(
-            `Successfully fetched ${leads.length} leads from Indiamart using direct method`
-          );
-        }
-      } else {
-        console.error(
-          "Failed to fetch lead data using direct method:",
-          response ? response.error : "Unknown error"
-        );
-        showNotification(
-          "Failed to fetch lead data using direct method: " +
-            (response ? response.error : "Unknown error"),
-          "error"
-        );
-      }
+        // ... (response handling logic)
     }
   );
+  */
+  // *** INSTEAD: Call the scraping logic directly or trigger it ***
+  handleScrapingRequest("scrapeLeadsDirect").then((result) => {
+    hideNotification();
+    if (result.success) {
+      const { leads, totalCount } = result.data;
+      showNotification(
+        `Local direct fetch: Successfully fetched ${leads.length} leads`
+      );
+    } else {
+      showNotification(`Local direct fetch failed: ${result.error}`, "error");
+    }
+  });
 }
 
-// Function to add a debug info panel
+// Function to add a debug panel
 function addDebugPanel() {
   // Check if panel already exists
   if (document.getElementById("indiamart-debug-panel")) {
@@ -440,6 +388,89 @@ function addDebugPanel() {
   // Add button to page
   document.body.appendChild(debugToggle);
 }
+
+// **NEW** Central function to handle scraping logic (called by listener or buttons)
+async function handleScrapingRequest(action, params) {
+  // TODO: Implement the actual scraping logic here.
+  // This function should find leads on the current page,
+  // extract the data, possibly navigate pagination, etc.
+  // Use 'action' to differentiate between normal and direct if needed.
+  // 'params' can contain other data passed from the background/popup.
+  console.log(`Handling scraping action: '${action}' with params:`, params);
+
+  // Simulate scraping delay and return dummy data
+  await new Promise((resolve) => setTimeout(resolve, 2000)); // Simulate 2 seconds
+
+  const dummyLeads = [
+    {
+      name: "Dummy Lead 1",
+      email: "dummy1@example.com",
+      phone: "1234567890",
+      source: action,
+    },
+    {
+      name: "Dummy Lead 2",
+      email: "dummy2@example.com",
+      phone: "0987654321",
+      source: action,
+    },
+  ];
+  console.log("Dummy scraping complete.");
+  return {
+    success: true,
+    data: { leads: dummyLeads, totalCount: dummyLeads.length },
+  };
+  // In case of error during scraping:
+  // return { success: false, error: "Failed to scrape leads due to XYZ." };
+}
+
+// **NEW** Listener for messages from the background script
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  console.log("Message received in content script from background:", message);
+
+  if (
+    message.action === "scrapeLeads" ||
+    message.action === "scrapeLeadsDirect"
+  ) {
+    showNotification(
+      `Received request from background: ${message.action}. Starting scrape...`,
+      "info",
+      10000
+    );
+
+    // Call the central scraping handler
+    handleScrapingRequest(
+      message.action,
+      message /* pass full message as params */
+    )
+      .then((response) => {
+        console.log("Sending response back to background:", response);
+        showNotification(
+          `Scraping complete for ${message.action}. Sending data back.`,
+          response.success ? "success" : "error",
+          5000
+        );
+        sendResponse(response);
+      })
+      .catch((error) => {
+        console.error(
+          `Error during scraping for action ${message.action}:`,
+          error
+        );
+        showNotification(`Scraping failed: ${error.message}`, "error", 5000);
+        sendResponse({
+          success: false,
+          error: error.message || "Unknown scraping error",
+        });
+      });
+
+    // Return true because we will respond asynchronously
+    return true;
+  }
+
+  // Optional: handle other actions if needed
+  // return false; // Indicate we are not sending a response asynchronously if action not handled
+});
 
 // Main function to initialize the content script
 function initialize() {
