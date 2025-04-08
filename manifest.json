@@ -35,7 +35,8 @@
     {
       "resources": [
         "wasm/secure_wasm_logic.js",
-        "wasm/secure_wasm_logic_bg.wasm"
+        "wasm/secure_wasm_logic_bg.wasm",
+        "contentScripts/secureContent.js"
       ],
       "matches": ["<all_urls>"]
     }

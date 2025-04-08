@@ -1,13 +1,11 @@
-mod utils;
-
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
-extern "C" {
-    fn alert(s: &str);
+pub fn validate_license(license: &str) -> bool {
+    license == "RAJU-SECURE-KEY"
 }
 
 #[wasm_bindgen]
-pub fn greet() {
-    alert("Hello, secure-wasm-logic!");
+pub fn encrypt_message(msg: &str) -> String {
+    format!("encrypted-{}", msg)
 }

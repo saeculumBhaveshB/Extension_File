@@ -1,34 +1,72 @@
-let wasm;
+// File: contentScripts/secureContent.js
 
-async function initializeWasm() {
-  if (!wasm) {
-    // Use chrome.runtime.getURL to get the correct path within the extension package
-    wasm = await import(chrome.runtime.getURL("wasm/secure_wasm_logic.js"));
-    await wasm.default(); // Initialize the WASM module (init is often the default export)
-    console.log("WASM initialized for content script.");
+// Import the default export (init) AND the named exports from the JS glue module
+import init, {
+  validate_license,
+  encrypt_message,
+  // test_wasm_functions // Removed from simplified Rust code
+} from "../wasm/secure_wasm_logic.js";
+
+let wasmInitialized = false;
+let initPromise = null;
+// let wasmExports = null; // No longer storing this
+
+// Initialization function specific to this module
+async function initializeWasmOnce() {
+  if (wasmInitialized) {
+    console.log("WASM module already initialized.");
+    return true;
   }
-  return wasm;
+  if (!initPromise) {
+    console.log("Initializing WASM module (attempt 4: named imports)...");
+    initPromise = init()
+      .then(() => {
+        wasmInitialized = true;
+        console.log("WASM module initialized successfully (named imports).");
+        return true;
+      })
+      .catch((error) => {
+        console.error("Failed to initialize WASM module:", error);
+        initPromise = null;
+        return false;
+      });
+  }
+  return initPromise;
 }
 
-// Note: Exports might not be directly usable by other scripts injected
-// on the page without a module system or message passing.
-export async function validateUserLicense(licenseKey) {
-  const { validate_license } = await initializeWasm();
+// Expose functions for the importer (content.js) to use
+async function callValidateLicense(licenseKey) {
+  const loaded = await initializeWasmOnce();
+  if (!loaded) throw new Error("WASM not initialized");
+  // Call the imported named export directly
+  console.log("Calling WASM validate_license...");
   return validate_license(licenseKey);
 }
 
-export async function encryptUserMessage(message) {
-  const { encrypt_message } = await initializeWasm();
+async function callEncryptMessage(message) {
+  const loaded = await initializeWasmOnce();
+  if (!loaded) throw new Error("WASM not initialized");
+  // Call the imported named export directly
+  console.log("Calling WASM encrypt_message...");
   return encrypt_message(message);
 }
 
-// Example usage (IIFE - Immediately Invoked Function Expression)
-(async () => {
-  try {
-    const { validate_license } = await initializeWasm(); // Ensure WASM is loaded
-    const isValid = await validate_license("RAJU-SECURE-KEY"); // Call the function
-    console.log("📄 Content Script: License valid?", isValid);
-  } catch (error) {
-    console.error("Error in content script WASM usage:", error);
-  }
-})();
+/* // Removed test_wasm_functions from Rust code
+async function callTestWasmFunctions() {
+  const loaded = await initializeWasmOnce();
+  if (!loaded) throw new Error("WASM not initialized");
+  // Call the imported named export directly
+  test_wasm_functions();
+}
+*/
+
+// The object that will be the "module exports" when dynamically imported
+const WasmApi = {
+  initializeWasmOnce,
+  callValidateLicense,
+  callEncryptMessage,
+  // callTestWasmFunctions // Removed
+};
+
+// Use default export for the API object
+export default WasmApi;

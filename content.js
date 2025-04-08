@@ -80,6 +80,72 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // Return false or undefined if we don't handle the message or respond synchronously
 });
 
+// ---- WASM Integration ----
+let wasmApi = null; // To hold the imported WASM API module
+
+async function getWasmApi() {
+  if (!wasmApi) {
+    console.log("Loading WASM API module...");
+    try {
+      // Dynamically import the secureContent.js script AS A MODULE
+      // chrome.runtime.getURL is crucial here
+      const module = await import(
+        chrome.runtime.getURL("contentScripts/secureContent.js")
+      );
+      wasmApi = module.default; // We exported the API object as default
+      console.log("WASM API module loaded:", wasmApi);
+      // Optionally initialize right away, or let functions initialize on first call
+      await wasmApi.initializeWasmOnce();
+    } catch (error) {
+      console.error("Failed to load WASM API module:", error);
+      showNotification("Failed to load secure WASM module.", "error");
+      wasmApi = null; // Ensure it's null on failure
+    }
+  }
+  return wasmApi;
+}
+
+// **NEW** Test function to call from console or button
+async function testWasmLicense() {
+  console.log("Testing WASM License Validation...");
+  showNotification("Testing WASM License...", "info");
+  try {
+    const api = await getWasmApi();
+    if (api) {
+      const key = "RAJU-SECURE-KEY";
+      const isValid = await api.callValidateLicense(key);
+      console.log(`WASM Test: Is license '${key}' valid?`, isValid);
+      showNotification(
+        `WASM Test: License '${key}' valid? ${isValid}`,
+        isValid ? "success" : "warning"
+      );
+
+      const invalidKey = "WRONG-KEY";
+      const isInvalidValid = await api.callValidateLicense(invalidKey);
+      console.log(
+        `WASM Test: Is license '${invalidKey}' valid?`,
+        isInvalidValid
+      );
+      showNotification(
+        `WASM Test: License '${invalidKey}' valid? ${isInvalidValid}`,
+        isInvalidValid ? "success" : "warning"
+      );
+
+      // Test encryption
+      const messageToEncrypt = "Test Message";
+      const encryptedMsg = await api.callEncryptMessage(messageToEncrypt);
+      console.log(`WASM Test: Encrypted '${messageToEncrypt}':`, encryptedMsg);
+      showNotification(`WASM Test: Encrypted to '${encryptedMsg}'`, "success");
+    } else {
+      console.error("WASM API not available for testing.");
+      showNotification("WASM API module failed to load.", "error");
+    }
+  } catch (error) {
+    console.error("Error during WASM test:", error);
+    showNotification(`Error during WASM test: ${error.message}`, "error");
+  }
+}
+
 // Function to check if we're on the Lead Manager page
 function isLeadManagerPage() {
   return window.location.href.includes("seller.indiamart.com/messagecentre");
@@ -504,54 +570,38 @@ async function handleScrapingRequest(action, params) {
   // return { success: false, error: "Failed to scrape leads due to XYZ." };
 }
 
-// Initialization function
+// Modify initialize to add a WASM test button
 function initialize() {
-  console.log("Indiamart Lead Fetcher content script initialized");
+  console.log("Indiamart Lead Fetcher content script initializing...");
 
   if (isLeadManagerPage()) {
-    console.log("Detected Lead Manager page");
+    console.log("On Lead Manager page. Adding fetch button and debug panel.");
+    addFetchButton(); // Existing button
+    addDebugPanel(); // Existing panel
 
-    // Add fetch button
-    addFetchButton();
+    // **NEW** Add WASM Test Button
+    if (!document.getElementById("indiamart-wasm-test-button")) {
+      const testButton = document.createElement("button");
+      testButton.id = "indiamart-wasm-test-button";
+      testButton.textContent = "Test WASM";
+      testButton.style.position = "fixed";
+      testButton.style.bottom = "70px"; // Adjust position relative to debug panel/other buttons
+      testButton.style.right = "180px"; // Adjust position
+      testButton.style.padding = "5px 10px";
+      testButton.style.backgroundColor = "#607D8B"; // Blue Grey
+      testButton.style.color = "white";
+      testButton.style.border = "none";
+      testButton.style.borderRadius = "3px";
+      testButton.style.cursor = "pointer";
+      testButton.style.zIndex = "9999";
+      testButton.style.fontSize = "12px";
+      testButton.addEventListener("click", testWasmLicense);
+      document.body.appendChild(testButton);
+    }
 
-    // Add debug panel
-    addDebugPanel();
-
-    // Wait a bit for the page to fully load before checking login status
-    setTimeout(() => {
-      const loggedIn = isUserLoggedIn();
-      console.log("Login status check result:", loggedIn);
-
-      if (!loggedIn) {
-        console.warn("User does not appear to be logged in to Indiamart");
-        showNotification(
-          'Login not detected. You can use "Force Fetch" to bypass login check or try logging in again.',
-          "warning",
-          10000
-        );
-      } else {
-        // Automatically fetch lead data when page loads
-        fetchLeadData(false);
-      }
-
-      // Update debug panel with login status
-      const debugPanel = document.getElementById("indiamart-debug-panel");
-      if (debugPanel) {
-        const loginStatusElement = document.createElement("p");
-        loginStatusElement.innerHTML = `<strong>Login Status:</strong> ${
-          loggedIn ? "Logged In" : "Not Logged In"
-        }`;
-        debugPanel.appendChild(loginStatusElement);
-
-        // Add cookie info
-        const cookieInfo = document.createElement("p");
-        cookieInfo.innerHTML = `<strong>Cookies Present:</strong> ${
-          document.cookie.includes("ImeshVisitor") ||
-          document.cookie.includes("im_iss")
-        }`;
-        debugPanel.appendChild(cookieInfo);
-      }
-    }, 2000);
+    showNotification("Indiamart Lead Fetcher is active!", "success", 3000);
+  } else {
+    console.log("Not on Lead Manager page.");
   }
 }
 
