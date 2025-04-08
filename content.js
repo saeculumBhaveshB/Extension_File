@@ -1,5 +1,85 @@
 // Content script for Indiamart Lead Fetcher
 
+console.log("Content script initializing - Adding message listener first...");
+
+// **MOVED TO TOP** Listener for messages from the background script
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  console.log(
+    "Message listener at TOP triggered. Received from background:",
+    message
+  );
+
+  if (
+    message.action === "scrapeLeads" ||
+    message.action === "scrapeLeadsDirect"
+  ) {
+    // Ensure dependent functions exist before calling them
+    if (
+      typeof showNotification !== "function" ||
+      typeof handleScrapingRequest !== "function"
+    ) {
+      console.error(
+        "Listener dependencies (showNotification/handleScrapingRequest) not ready!"
+      );
+      // Try to send an error response, though it might fail if sendResponse itself isn't ready?
+      try {
+        sendResponse({
+          success: false,
+          error: "Content script internal error: Functions not ready.",
+        });
+      } catch (e) {
+        console.error("Failed to send error response from early listener", e);
+      }
+      return false; // Indicate synchronous response (or failure)
+    }
+
+    showNotification(
+      `Received request from background (TOP listener): ${message.action}. Starting scrape...`,
+      "info",
+      10000
+    );
+
+    // Call the central scraping handler
+    handleScrapingRequest(
+      message.action,
+      message // pass full message as params
+    )
+      .then((response) => {
+        console.log(
+          "Sending response back to background (TOP listener):",
+          response
+        );
+        showNotification(
+          `Scraping complete (TOP listener) for ${message.action}. Sending data back.`,
+          response.success ? "success" : "error",
+          5000
+        );
+        sendResponse(response);
+      })
+      .catch((error) => {
+        console.error(
+          `Error during scraping (TOP listener) for action ${message.action}:`,
+          error
+        );
+        showNotification(
+          `Scraping failed (TOP listener): ${error.message}`,
+          "error",
+          5000
+        );
+        sendResponse({
+          success: false,
+          error: error.message || "Unknown scraping error from TOP listener",
+        });
+      });
+
+    // Return true because we will respond asynchronously
+    return true;
+  }
+
+  // Optional: handle other actions if needed
+  // Return false or undefined if we don't handle the message or respond synchronously
+});
+
 // Function to check if we're on the Lead Manager page
 function isLeadManagerPage() {
   return window.location.href.includes("seller.indiamart.com/messagecentre");
@@ -424,55 +504,7 @@ async function handleScrapingRequest(action, params) {
   // return { success: false, error: "Failed to scrape leads due to XYZ." };
 }
 
-// **NEW** Listener for messages from the background script
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  console.log("Message received in content script from background:", message);
-
-  if (
-    message.action === "scrapeLeads" ||
-    message.action === "scrapeLeadsDirect"
-  ) {
-    showNotification(
-      `Received request from background: ${message.action}. Starting scrape...`,
-      "info",
-      10000
-    );
-
-    // Call the central scraping handler
-    handleScrapingRequest(
-      message.action,
-      message /* pass full message as params */
-    )
-      .then((response) => {
-        console.log("Sending response back to background:", response);
-        showNotification(
-          `Scraping complete for ${message.action}. Sending data back.`,
-          response.success ? "success" : "error",
-          5000
-        );
-        sendResponse(response);
-      })
-      .catch((error) => {
-        console.error(
-          `Error during scraping for action ${message.action}:`,
-          error
-        );
-        showNotification(`Scraping failed: ${error.message}`, "error", 5000);
-        sendResponse({
-          success: false,
-          error: error.message || "Unknown scraping error",
-        });
-      });
-
-    // Return true because we will respond asynchronously
-    return true;
-  }
-
-  // Optional: handle other actions if needed
-  // return false; // Indicate we are not sending a response asynchronously if action not handled
-});
-
-// Main function to initialize the content script
+// Initialization function
 function initialize() {
   console.log("Indiamart Lead Fetcher content script initialized");
 
