@@ -21,6 +21,19 @@ directFetchButton.style.marginTop = "10px";
 // Insert the button after the regular fetch button
 fetchButton.parentNode.insertBefore(directFetchButton, fetchButton.nextSibling);
 
+// Add Hit API Call button
+const hitApiCallButton = document.createElement("button");
+hitApiCallButton.id = "hit-api-call-btn";
+hitApiCallButton.textContent = "Hit API Call";
+hitApiCallButton.style.backgroundColor = "#4CAF50"; // Example style
+hitApiCallButton.style.marginTop = "10px";
+
+// Insert the button after the direct fetch button
+directFetchButton.parentNode.insertBefore(
+  hitApiCallButton,
+  directFetchButton.nextSibling
+);
+
 // Function to format date
 function formatDate(dateString) {
   if (!dateString) return "Never";
@@ -341,12 +354,62 @@ function clearStoredData() {
   }
 }
 
+// Function to make the API call via background script
+async function hitApiCall() {
+  console.log("Popup: Sending request to background script to call API...");
+  showStatus("Requesting API call...", false);
+  try {
+    chrome.runtime.sendMessage({ action: "makeApiCall" }, (response) => {
+      if (chrome.runtime.lastError) {
+        // Handle errors like the background script not being available
+        console.error(
+          "Popup: Error sending message:",
+          chrome.runtime.lastError.message
+        );
+        showStatus(
+          `Error contacting background: ${chrome.runtime.lastError.message}`,
+          true
+        );
+        return;
+      }
+
+      if (response && response.success) {
+        console.log("Popup: Received successful response from background.");
+        console.log("API Response:", response.responseText); // Log the response text
+        showStatus(
+          "API call successful! Response logged to popup console.",
+          false
+        );
+      } else {
+        console.error(
+          "Popup: Received error response from background:",
+          response?.error
+        );
+        console.error(
+          "API Response Text (if available):",
+          response?.responseText
+        );
+        showStatus(
+          `API call failed: ${response?.error || "Unknown error"}`,
+          true
+        );
+      }
+    });
+  } catch (error) {
+    // This catch block might not be strictly necessary for sendMessage
+    // but kept for safety.
+    console.error("Popup: Error sending message to background:", error);
+    showStatus(`Error sending message: ${error.message}`, true);
+  }
+}
+
 // Add event listeners
 fetchButton.addEventListener("click", fetchLeadData);
 directFetchButton.addEventListener("click", useDirectFetchMethod);
 exportCsvButton.addEventListener("click", exportAsCSV);
 exportJsonButton.addEventListener("click", exportAsJSON);
 clearDataButton.addEventListener("click", clearStoredData);
+hitApiCallButton.addEventListener("click", hitApiCall); // Add listener for the new button
 
 // Initialize UI when popup is opened
 document.addEventListener("DOMContentLoaded", updateUI);

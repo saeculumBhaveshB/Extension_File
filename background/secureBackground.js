@@ -90,6 +90,38 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     // Return true ONLY because we are using async operations (await) before sendResponse
     return true;
+  }
+  // Add a new handler for the API call
+  else if (message.action === "makeApiCall") {
+    const apiUrl = "https://webhook.site/0b1c45b7-1af7-4828-b345-b459276dfea5";
+    console.log(`Background: Received request to call API: ${apiUrl}`);
+    (async () => {
+      try {
+        const response = await fetch(apiUrl, { method: "GET" }); // Use GET as requested
+        const responseText = await response.text();
+
+        if (response.ok) {
+          console.log(
+            `Background: API call successful. Status: ${response.status}`
+          );
+          console.log("Background: API Response Text:", responseText);
+          sendResponse({ success: true, responseText: responseText });
+        } else {
+          console.error(
+            `Background: API call failed. Status: ${response.status}, Response: ${responseText}`
+          );
+          sendResponse({
+            success: false,
+            error: `API call failed with status ${response.status}`,
+            responseText: responseText, // Still send back the text if available
+          });
+        }
+      } catch (error) {
+        console.error("Background: Error during fetch:", error);
+        sendResponse({ success: false, error: error.message });
+      }
+    })();
+    return true; // Indicate asynchronous response
   } else {
     // Handle unknown actions
     console.log("Unknown action received:", message.action);
