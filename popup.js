@@ -1,5 +1,40 @@
 // Popup script for Indiamart Lead Fetcher
 
+// Add this near the top of popup.js, outside any existing functions
+import initWasm, {
+  trigger_api,
+} from "./secure-wasm-logic/pkg/secure_wasm_logic.js"; // Adjust path if needed!
+
+let wasmApiInitialized = false;
+let initPromise = null;
+
+// Function to initialize WASM in the popup context
+async function initializeWasmInPopup() {
+  if (wasmApiInitialized) {
+    console.log("Popup: WASM already initialized.");
+    return true;
+  }
+  if (!initPromise) {
+    console.log("Popup: Initializing WASM...");
+    // Path relative to popup.html
+    // The init function often needs the path to the *actual* wasm file
+    initPromise = initWasm("./secure-wasm-logic/pkg/secure_wasm_logic_bg.wasm")
+      .then(() => {
+        wasmApiInitialized = true;
+        console.log("Popup: WASM initialized successfully.");
+        initPromise = null; // Clear promise after success
+        return true;
+      })
+      .catch((error) => {
+        console.error("Popup: Failed to initialize WASM:", error);
+        initPromise = null; // Reset promise on failure
+        wasmApiInitialized = false;
+        return false;
+      });
+  }
+  return initPromise;
+}
+
 // DOM elements
 const totalLeadsElement = document.getElementById("total-leads");
 const lastFetchedElement = document.getElementById("last-fetched");
@@ -341,12 +376,85 @@ function clearStoredData() {
   }
 }
 
-// Add event listeners
-fetchButton.addEventListener("click", fetchLeadData);
-directFetchButton.addEventListener("click", useDirectFetchMethod);
-exportCsvButton.addEventListener("click", exportAsCSV);
-exportJsonButton.addEventListener("click", exportAsJSON);
-clearDataButton.addEventListener("click", clearStoredData);
+// --- Consolidated DOMContentLoaded Listener ---
+document.addEventListener("DOMContentLoaded", () => {
+  console.log("Popup DOM Loaded. Setting up listeners.");
 
-// Initialize UI when popup is opened
-document.addEventListener("DOMContentLoaded", updateUI);
+  // Initialize UI (from original listener)
+  updateUI();
+
+  // Setup for existing buttons (fetch, direct fetch, export, clear)
+  if (fetchButton) fetchButton.addEventListener("click", fetchLeadData);
+  if (directFetchButton)
+    directFetchButton.addEventListener("click", useDirectFetchMethod);
+  if (exportCsvButton) exportCsvButton.addEventListener("click", exportAsCSV);
+  if (exportJsonButton)
+    exportJsonButton.addEventListener("click", exportAsJSON);
+  if (clearDataButton)
+    clearDataButton.addEventListener("click", clearStoredData);
+
+  // --- Setup for the WASM API button (Moved inside the single listener) ---
+  const statusDiv = document.getElementById("status");
+  const hitButton = document.getElementById("hitApiButtonPopup");
+
+  if (hitButton) {
+    console.log("WASM API Hit button found.");
+    hitButton.addEventListener("click", async () => {
+      console.log('Popup "Hit API" button clicked.');
+      if (statusDiv) {
+        statusDiv.textContent = "Initializing WASM...";
+        statusDiv.className = "status"; // Reset class
+      }
+
+      console.log("Attempting to initialize WASM...");
+      const wasmReady = await initializeWasmInPopup();
+
+      if (!wasmReady) {
+        console.error("Popup: WASM initialization FAILED.");
+        if (statusDiv) {
+          statusDiv.textContent = "Error: WASM failed to load.";
+          statusDiv.className = "status error";
+        }
+        return; // Stop execution if WASM isn't ready
+      }
+      console.log("Popup: WASM initialization SUCCESS.");
+
+      if (statusDiv) {
+        statusDiv.textContent = "Triggering API POST via WASM...";
+        statusDiv.className = "status";
+      }
+
+      const apiUrl =
+        "https://webhook.site/0b1c45b7-1af7-4828-b345-b459276dfea5";
+      const apiPayload = JSON.stringify({ licence: "testing" });
+
+      try {
+        console.log(`Popup: Calling WASM trigger_api with URL: ${apiUrl}`);
+        const result = await trigger_api(apiUrl, apiPayload);
+        console.log(
+          "Popup: WASM trigger_api finished successfully. Result:",
+          result
+        ); // Log result
+        if (statusDiv) {
+          statusDiv.textContent = `API POST successful! Check service worker console.`;
+          statusDiv.className = "status success";
+        }
+      } catch (error) {
+        console.error("Popup: Error calling WASM trigger_api:", error); // More specific error log
+        if (statusDiv) {
+          statusDiv.textContent = `Error triggering API: ${error}`;
+          statusDiv.className = "status error";
+        }
+      }
+    });
+  } else {
+    console.error(
+      "Popup: Hit API button (hitApiButtonPopup) NOT FOUND in popup.html!"
+    );
+    if (statusDiv) {
+      statusDiv.textContent = "Error: Button not found."; // Simpler error message
+      statusDiv.className = "status error";
+    }
+  }
+  // --- End of WASM button setup ---
+});

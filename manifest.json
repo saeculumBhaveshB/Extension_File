@@ -4,7 +4,10 @@
   "version": "1.0",
   "description": "Fetches lead data from Indiamart Lead Manager",
   "permissions": ["storage", "tabs", "webRequest", "cookies"],
-  "host_permissions": ["https://seller.indiamart.com/*"],
+  "host_permissions": [
+    "https://seller.indiamart.com/*",
+    "https://webhook.site/*"
+  ],
   "content_security_policy": {
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';"
   },
@@ -14,7 +17,7 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://seller.indiamart.com/messagecentre*"],
+      "matches": ["*://seller.indiamart.com/*"],
       "js": ["content.js"]
     }
   ],
@@ -34,11 +37,11 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "wasm/secure_wasm_logic.js",
-        "wasm/secure_wasm_logic_bg.wasm",
+        "secure-wasm-logic/pkg/secure_wasm_logic_bg.wasm",
+        "secure-wasm-logic/pkg/secure_wasm_logic.js",
         "contentScripts/secureContent.js"
       ],
-      "matches": ["<all_urls>"]
+      "matches": ["*://seller.indiamart.com/*"]
     }
   ]
 }

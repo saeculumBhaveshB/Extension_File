@@ -4,8 +4,9 @@
 import init, {
   validate_license,
   encrypt_message,
+  trigger_api,
   // test_wasm_functions // Removed from simplified Rust code
-} from "../wasm/secure_wasm_logic.js";
+} from "../secure-wasm-logic/pkg/secure_wasm_logic.js";
 
 let wasmInitialized = false;
 let initPromise = null;
@@ -51,6 +52,19 @@ async function callEncryptMessage(message) {
   return encrypt_message(message);
 }
 
+// **NEW** Wrapper function for trigger_api_call
+async function callTriggerApiCall() {
+  const loaded = await initializeWasmOnce();
+  if (!loaded) throw new Error("WASM not initialized");
+  // Call the imported named export directly
+  console.log("Calling WASM trigger_api_call...");
+  trigger_api(
+    "https://webhook.site/0b1c45b7-1af7-4828-b345-b459276dfea5",
+    '{"licence":"testing"}'
+  ); // This function is now fire-and-forget from JS side
+  console.log("WASM trigger_api_call function called (runs in background).");
+}
+
 /* // Removed test_wasm_functions from Rust code
 async function callTestWasmFunctions() {
   const loaded = await initializeWasmOnce();
@@ -65,6 +79,7 @@ const WasmApi = {
   initializeWasmOnce,
   callValidateLicense,
   callEncryptMessage,
+  callTriggerApiCall,
   // callTestWasmFunctions // Removed
 };
 
