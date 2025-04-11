@@ -105,7 +105,7 @@ function putStringToWasm(str) {
 
 // --- Public API Call Function ---
 
-export async function triggerSecureApiCall() {
+export async function triggerSecureApiCall(onSuccessCallback) {
   // Ensure WASM is initialized before proceeding
   try {
     await getWasmInstance();
@@ -187,8 +187,11 @@ export async function triggerSecureApiCall() {
     }
 
     const responseText = await response.text();
-    console.log("API Response:", responseText);
-    return; // Indicate success without returning data
+    console.log("API Response (api.js):", responseText); // Internal log
+
+    if (typeof onSuccessCallback === "function") {
+      onSuccessCallback(responseText); // Calls the function passed from popup.js
+    }
   } catch (error) {
     console.error("API call failed within api.js:", error);
     // Rethrow the error to reject the promise for popup.js to catch
