@@ -1,15 +1,160 @@
 // Popup script for Indiamart Lead Fetcher
 
+// We are not importing from api.js anymore
+// import { getApiUrl } from './build/api.js';
+
 // DOM elements
 const totalLeadsElement = document.getElementById("total-leads");
 const lastFetchedElement = document.getElementById("last-fetched");
 const fetchButton = document.getElementById("fetch-btn");
+const hitApiButton = document.getElementById("hit-api-btn");
 const exportCsvButton = document.getElementById("export-csv-btn");
 const exportJsonButton = document.getElementById("export-json-btn");
 const clearDataButton = document.getElementById("clear-data-btn");
 const loadingElement = document.getElementById("loading");
 const statusElement = document.getElementById("status");
 const loadingTextElement = document.getElementById("loading-text");
+
+// Reintroduce wasmModule and manual initialization
+let wasmModuleInstance = null;
+let wasmMemory = null;
+
+async function initWasm() {
+  try {
+    const response = await fetch(chrome.runtime.getURL("build/api.wasm"));
+    const wasmBytes = await response.arrayBuffer();
+
+    // Create the memory instance WASM needs
+    wasmMemory = new WebAssembly.Memory({ initial: 2, maximum: 10 }); // Start small
+
+    const importObject = {
+      env: {
+        abort: (messagePtr, fileNamePtr, line, column) => {
+          // Basic abort: read message/fileName from memory if needed
+          // For now, just throw a generic error
+          throw new Error(`WASM aborted: line ${line}, col ${column}`);
+        },
+        "Date.now": () => Date.now(),
+        memory: wasmMemory, // Provide the memory instance
+      },
+      // Add other namespaces if AS expects them (check your build output)
+      // index: { }
+    };
+
+    const { instance } = await WebAssembly.instantiate(wasmBytes, importObject);
+    wasmModuleInstance = instance.exports;
+    console.log(
+      "WASM Module loaded and instantiated manually:",
+      wasmModuleInstance
+    );
+    hitApiButton.disabled = false;
+  } catch (error) {
+    console.error("Failed to initialize WASM module manually:", error);
+    hitApiButton.disabled = true;
+    showStatus("WebAssembly initialization failed: " + error.message, true);
+  }
+}
+
+// Helper function to read string from WASM memory
+function getStringFromWasm(pointer) {
+  if (
+    !pointer ||
+    !wasmMemory ||
+    !wasmModuleInstance ||
+    !wasmModuleInstance.__getString
+  ) {
+    // Attempt to use the standard __getString if exported, otherwise basic read
+    if (wasmModuleInstance && wasmModuleInstance.__getString) {
+      // Newer AS versions might export __getString directly
+      return wasmModuleInstance.__getString(pointer);
+    } else if (wasmMemory && pointer) {
+      // Manual fallback if __getString isn't readily available
+      // This is a simplified version and might break with complex strings
+      const buffer = new Uint16Array(wasmMemory.buffer);
+      let str = "";
+      let i = pointer / 2; // Pointer is byte offset, JS string uses 16-bit chars
+      while (buffer[i] !== 0) {
+        // Read until null terminator
+        str += String.fromCharCode(buffer[i]);
+        i++;
+        if (i * 2 > buffer.byteLength) break; // Safety break
+      }
+      return str;
+    } else {
+      console.error("Cannot read string from WASM: Memory or pointer invalid.");
+      return null;
+    }
+  }
+  // If __getString exists on the instance, use it (common pattern)
+  return wasmModuleInstance.__getString(pointer);
+}
+
+// Initialize WASM module when popup opens
+initWasm();
+
+// Function to make secure API call
+async function makeSecureApiCall() {
+  if (!wasmModuleInstance) {
+    showStatus("WebAssembly module not initialized correctly", true);
+    return;
+  }
+
+  try {
+    // Show loading indicator
+    loadingElement.style.display = "block";
+    loadingTextElement.textContent = "Making API call via WASM...";
+    hitApiButton.disabled = true;
+
+    // Get the API URL pointer from the WASM module
+    const apiUrlPointer = wasmModuleInstance.getApiUrl();
+    // Decode the pointer to a JS string using helper
+    const targetUrl = getStringFromWasm(apiUrlPointer);
+
+    if (!targetUrl) {
+      throw new Error("Failed to get API URL string from WASM module");
+    }
+
+    console.log(`Calling API URL from WASM: ${targetUrl}`);
+
+    const response = await fetch(targetUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        source: "chrome_extension_wasm_call",
+        timestamp: Date.now(), // Add a simple timestamp from JS
+      }),
+    });
+
+    if (!response.ok) {
+      // Try to read the response body for more details on error
+      let errorBody = "";
+      try {
+        errorBody = await response.text();
+      } catch (e) {
+        // Ignore if reading body fails
+      }
+      throw new Error(
+        `HTTP error! status: ${response.status} ${response.statusText}. Body: ${errorBody}`
+      );
+    }
+
+    // Webhook.site often returns a simple status or request ID, not necessarily JSON
+    const responseText = await response.text();
+    console.log("API Response:", responseText);
+    showStatus("API call successful!");
+  } catch (error) {
+    console.error("API call failed:", error);
+    showStatus(`API call failed: ${error.message}`, true);
+  } finally {
+    loadingElement.style.display = "none";
+    hitApiButton.disabled = false;
+  }
+}
+
+// Add click handler for Hit API button
+hitApiButton.addEventListener("click", makeSecureApiCall);
 
 // Add Direct Fetch button
 const directFetchButton = document.createElement("button");

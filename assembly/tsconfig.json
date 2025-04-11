@@ -1,0 +1,18 @@
+{
+  "extends": "assemblyscript/std/assembly.json",
+  "include": ["*.ts"],
+  "compilerOptions": {
+    "target": "esnext",
+    "module": "commonjs",
+    "outDir": "../build",
+    "newLine": "lf",
+    "allowJs": false,
+    "noImplicitAny": true,
+    "noImplicitReturns": true,
+    "noImplicitThis": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "strictNullChecks": true,
+    "preserveConstEnums": true
+  }
+}
