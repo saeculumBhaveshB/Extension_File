@@ -11,6 +11,7 @@
     "assemblyscript": "^0.27.1"
   },
   "devDependencies": {
+    "as-base64": "^0.2.0",
     "typescript": "^5.0.0"
   }
 }

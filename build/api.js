@@ -35,6 +35,11 @@ async function instantiate(module, imports = {}) {
       // assembly/api/getApiUrl() => ~lib/string/String
       return __liftString(exports.getApiUrl() >>> 0);
     },
+    encodePayload(payload) {
+      // assembly/api/encodePayload(~lib/string/String) => ~lib/string/String
+      payload = __lowerString(payload) || __notnull();
+      return __liftString(exports.encodePayload(payload) >>> 0);
+    },
   }, exports);
   function __liftString(pointer) {
     if (!pointer) return null;
@@ -67,6 +72,7 @@ export const {
   encryptRequest,
   prepareApiRequest,
   getApiUrl,
+  encodePayload,
 } = await (async url => instantiate(
   await (async () => {
     const isNodeOrBun = typeof process != "undefined" && process.versions != null && (process.versions.node != null || process.versions.bun != null);

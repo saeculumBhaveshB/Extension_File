@@ -57,36 +57,67 @@ async function initWasm() {
 
 // Helper function to read string from WASM memory
 function getStringFromWasm(pointer) {
-  if (
-    !pointer ||
-    !wasmMemory ||
-    !wasmModuleInstance ||
-    !wasmModuleInstance.__getString
-  ) {
-    // Attempt to use the standard __getString if exported, otherwise basic read
-    if (wasmModuleInstance && wasmModuleInstance.__getString) {
-      // Newer AS versions might export __getString directly
-      return wasmModuleInstance.__getString(pointer);
-    } else if (wasmMemory && pointer) {
-      // Manual fallback if __getString isn't readily available
-      // This is a simplified version and might break with complex strings
-      const buffer = new Uint16Array(wasmMemory.buffer);
-      let str = "";
-      let i = pointer / 2; // Pointer is byte offset, JS string uses 16-bit chars
-      while (buffer[i] !== 0) {
-        // Read until null terminator
-        str += String.fromCharCode(buffer[i]);
-        i++;
-        if (i * 2 > buffer.byteLength) break; // Safety break
-      }
-      return str;
-    } else {
-      console.error("Cannot read string from WASM: Memory or pointer invalid.");
-      return null;
-    }
+  // Check if instance and memory are valid
+  if (!wasmModuleInstance || !wasmMemory || !pointer) {
+    console.error(
+      "Cannot read string from WASM: Instance, Memory or pointer invalid."
+    );
+    return null;
   }
-  // If __getString exists on the instance, use it (common pattern)
-  return wasmModuleInstance.__getString(pointer);
+
+  try {
+    // Prefer __getString if available (standard AS loader helper)
+    if (wasmModuleInstance.__getString) {
+      return wasmModuleInstance.__getString(pointer);
+    }
+
+    // Manual fallback: Read UTF-16 string from memory
+    // Assumes null termination and valid pointer
+    const buffer = new Uint16Array(wasmMemory.buffer);
+    // Pointer is a byte offset; divide by 2 for Uint16 index
+    let idx = pointer >>> 1;
+    let endIdx = idx;
+    // Find null terminator (or end of buffer)
+    while (buffer[endIdx] !== 0 && endIdx < buffer.length) {
+      endIdx++;
+    }
+    // Create string from subarray
+    return String.fromCharCode(...buffer.subarray(idx, endIdx));
+  } catch (e) {
+    console.error("Error reading string from WASM memory:", e);
+    return null;
+  }
+}
+
+// Helper function to write string TO WASM memory and get pointer
+function putStringToWasm(str) {
+  if (!wasmModuleInstance || !wasmMemory) {
+    console.error("Cannot write string to WASM: Instance or Memory invalid.");
+    return 0; // Return null pointer
+  }
+
+  try {
+    // Prefer __new if available (standard AS loader helper)
+    if (wasmModuleInstance.__new && wasmModuleInstance.__pin) {
+      const pointer = wasmModuleInstance.__new(str.length << 1, 1); // Create space for UTF-16 string
+      wasmModuleInstance.__pin(pointer); // Pin it so GC doesn't move it (important before writing)
+      const buffer = new Uint16Array(wasmMemory.buffer);
+      for (let i = 0; i < str.length; i++) {
+        buffer[(pointer >>> 1) + i] = str.charCodeAt(i);
+      }
+      // Note: We might need to unpin later if managing memory tightly
+      // wasmModuleInstance.__unpin(pointer);
+      return pointer;
+    } else {
+      console.error(
+        "WASM module does not export __new and/or __pin. Cannot allocate memory for string."
+      );
+      return 0;
+    }
+  } catch (e) {
+    console.error("Error writing string to WASM memory:", e);
+    return 0;
+  }
 }
 
 // Initialize WASM module when popup opens
@@ -105,9 +136,8 @@ async function makeSecureApiCall() {
     loadingTextElement.textContent = "Making API call via WASM...";
     hitApiButton.disabled = true;
 
-    // Get the API URL pointer from the WASM module
+    // Get the de-obfuscated API URL pointer from WASM
     const apiUrlPointer = wasmModuleInstance.getApiUrl();
-    // Decode the pointer to a JS string using helper
     const targetUrl = getStringFromWasm(apiUrlPointer);
 
     if (!targetUrl) {
@@ -116,15 +146,50 @@ async function makeSecureApiCall() {
 
     console.log(`Calling API URL from WASM: ${targetUrl}`);
 
+    // Prepare payload
+    const payload = {
+      source: "chrome_extension_wasm_call_obfuscated",
+      timestamp: Date.now(),
+    };
+    const payloadString = JSON.stringify(payload);
+
+    // Allocate memory for the payload string in WASM and get pointer
+    const payloadPointer = putStringToWasm(payloadString);
+    if (!payloadPointer) {
+      throw new Error("Failed to allocate memory for payload in WASM");
+    }
+
+    // Call WASM to Base64 encode the payload
+    const encodedPayloadPointer =
+      wasmModuleInstance.encodePayload(payloadPointer);
+    const encodedPayloadString = getStringFromWasm(encodedPayloadPointer);
+
+    // --- Optional: Memory Management ----
+    // If __unpin exists, unpin the original payload string pointer
+    // if (wasmModuleInstance.__unpin) {
+    //   wasmModuleInstance.__unpin(payloadPointer);
+    // }
+    // We might also need to manage the memory returned by encodePayload
+    // depending on how encode() allocates memory. For now, assume it's managed or GC'd.
+    // ------------------------------------
+
+    if (!encodedPayloadString) {
+      throw new Error(
+        "Failed to encode payload or read encoded string from WASM"
+      );
+    }
+
+    console.log(`Encoded Payload: ${encodedPayloadString}`);
+
     const response = await fetch(targetUrl, {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
+        // Set content type to plain text as body is Base64
+        "Content-Type": "text/plain",
+        "X-Payload-Encoding": "base64", // Custom header
       },
-      body: JSON.stringify({
-        source: "chrome_extension_wasm_call",
-        timestamp: Date.now(), // Add a simple timestamp from JS
-      }),
+      // Send the Base64 encoded string directly
+      body: encodedPayloadString,
     });
 
     if (!response.ok) {

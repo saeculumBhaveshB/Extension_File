@@ -22,3 +22,9 @@ export declare function prepareApiRequest(url: string): string;
  * @returns `~lib/string/String`
  */
 export declare function getApiUrl(): string;
+/**
+ * assembly/api/encodePayload
+ * @param payload `~lib/string/String`
+ * @returns `~lib/string/String`
+ */
+export declare function encodePayload(payload: string): string;
