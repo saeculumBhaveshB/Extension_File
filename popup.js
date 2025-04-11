@@ -34,6 +34,15 @@ function showStatus(message, isError = false) {
   }, 5000);
 }
 
+// --- Function to display text (e.g., to console) ---
+function displayTextMessage(message) {
+  console.log("Displaying message from popup.js:", message);
+  // If you wanted to display this in the popup HTML instead,
+  // you could target an element like the statusElement:
+  // statusElement.textContent = message;
+  // statusElement.className = "status success"; // Or a different class
+}
+
 // Function to update UI with stored data (Example)
 function updateUI() {
   chrome.storage.local.get(["indiamartLeads", "lastFetchTime"], (result) => {
@@ -61,11 +70,11 @@ hitApiButton.addEventListener("click", async () => {
   hitApiButton.disabled = true;
 
   try {
-    // Call the function imported from api.js
-    // We await it to catch errors, but don't need the return value
-    await triggerSecureApiCall();
-    // If it completes without throwing, it succeeded
-    showStatus("Secure API call successful!");
+    // Call the function from api.js, passing displayTextMessage as the callback
+    await triggerSecureApiCall(displayTextMessage);
+
+    // Success is now handled by the callback
+    // showStatus('Secure API call successful!'); // Can remove this if callback handles UI
   } catch (error) {
     console.error("Secure API Call Failed (popup.js):", error);
     // Display a user-friendly message from the error
